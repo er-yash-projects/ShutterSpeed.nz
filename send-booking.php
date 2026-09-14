@@ -134,4 +134,32 @@ if (!$sent) {
     exit;
 }
 
+// Best-effort customer confirmation. The business notification above
+// is the part that matters for this endpoint to report success on —
+// if the customer copy fails to send, that's not worth failing the
+// visitor's booking submission over.
+$customerSubject = 'Booking Received — Shutter & Speed Photography';
+
+$customerBody = "Hi {$name},\n\n"
+    . "Thanks for booking with Shutter & Speed Photography! " .
+      "We've received your request for the {$package} package (\${$price} NZD).\n\n"
+    . "Shoot details\n"
+    . "Preferred date: {$date}\n"
+    . "Property address: {$address}\n\n"
+    . "Payment — Bank Transfer\n"
+    . "GAURAV KANT · 01-0071-0937116-00\n"
+    . "Please use your name as the payment reference.\n\n"
+    . "We'll be in touch shortly to confirm your booking. " .
+      "Questions in the meantime? Reply to this email or call 022 124 0224.\n\n"
+    . "— Shutter & Speed Photography\n"
+    . "shutterandspeed.co.nz\n";
+
+$customerHeaders = [
+    'From: Shutter & Speed Photography <' . FROM_EMAIL . '>',
+    'Reply-To: Gaurav Kant <' . TO_EMAIL . '>',
+    'Content-Type: text/plain; charset=utf-8',
+];
+
+mail($email, $customerSubject, $customerBody, implode("\r\n", $customerHeaders));
+
 echo json_encode(['success' => true]);
