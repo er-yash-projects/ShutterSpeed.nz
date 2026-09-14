@@ -890,6 +890,22 @@
       letter-spacing: .5px;
     }
 
+    .footer-links {
+      display: flex;
+      gap: 18px;
+    }
+
+    .footer-links a {
+      color: #666;
+      font-size: 11px;
+      letter-spacing: .5px;
+      white-space: nowrap;
+    }
+
+    .footer-links a:hover {
+      color: var(--volt);
+    }
+
     /* MOBILE */
 
     @media (max-width: 900px) {
@@ -1817,6 +1833,11 @@
             © 2026 Shutter and Speed Photography — Gaurav Kant ·
             shutterandspeed.co.nz · Whangarei NZ
           </p>
+
+          <nav class="footer-links" aria-label="Legal">
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/terms.html">Terms of Service</a>
+          </nav>
 
         </div>
 
