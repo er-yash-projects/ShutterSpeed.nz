@@ -1,17 +1,28 @@
 <?php
 /**
- * Booking / lead notification endpoint.
+ * Bank Transfer booking endpoint.
  *
  * Receives the booking form's JSON payload, validates it server-side,
- * and emails a notification to the business inbox. No API keys or
- * SMTP credentials are required — this uses PHP's built-in mail()
- * function, which sends through the hosting account's local mail
- * relay on the same domain the site is hosted on.
+ * and emails both sides — but a Bank Transfer booking is NOT
+ * confirmed just by submitting the form. There's no bank webhook to
+ * verify the money actually arrived (unlike the Stripe card flow),
+ * so the customer is told their booking is pending, and Gaurav gets
+ * a signed "Confirm Payment Received" link he only clicks after
+ * checking his bank account himself (see confirm-payment.php).
  */
 
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
+
+$configPath = __DIR__ . '/stripe-config.php';
+if (!file_exists($configPath)) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Not configured.']);
+    exit;
+}
+require $configPath;
+require __DIR__ . '/email-template.php';
 
 // This endpoint is only ever called from the site's own booking form.
 $allowedOrigin = 'https://shutterandspeed.co.nz';
@@ -35,19 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 const TO_EMAIL = 'g.kant1998@gmail.com';
 const FROM_EMAIL = 'noreply@shutterandspeed.co.nz';
-const MAX_FIELD_LENGTH = 2000;
-
-/**
- * Strip characters that could be used for email header injection and
- * clamp length. Applied to every field before it touches a header or
- * the message body.
- */
-function cleanInput(string $value): string
-{
-    $value = str_replace(["\r", "\n"], ' ', $value);
-    $value = trim($value);
-    return mb_substr($value, 0, MAX_FIELD_LENGTH);
-}
 
 $raw = file_get_contents('php://input');
 $data = json_decode($raw ?: '', true);
@@ -74,7 +72,6 @@ $address = cleanInput((string) ($data['address'] ?? ''));
 $notes = cleanInput((string) ($data['notes'] ?? ''));
 $package = cleanInput((string) ($data['package'] ?? ''));
 $price = cleanInput((string) ($data['price'] ?? ''));
-$paymentMethod = cleanInput((string) ($data['paymentMethod'] ?? ''));
 
 $errors = [];
 
@@ -106,27 +103,49 @@ if (!empty($errors)) {
 
 $submittedAt = date('Y-m-d H:i:s T');
 
-$subject = 'New Website Lead — ' . $name;
+// Signed link Gaurav clicks once he's checked his bank account and
+// actually sees the transfer — see confirm-payment.php. Nobody else
+// can construct a valid signature for a different booking's details.
+$confirmPayload = signBookingPayload([
+    'name' => $name,
+    'email' => $email,
+    'phone' => $phone,
+    'date' => $date,
+    'address' => $address,
+    'notes' => $notes,
+    'package' => $package,
+    'price' => $price,
+], CONFIRM_LINK_SECRET);
 
-$body = "New booking request from shutterandspeed.co.nz\n\n"
-    . "Name: {$name}\n"
-    . "Email: {$email}\n"
-    . "Phone: {$phone}\n"
-    . "Package: {$package} (\${$price} NZD)\n"
-    . "Payment method: {$paymentMethod}\n"
-    . "Preferred date: {$date}\n"
-    . "Property address: {$address}\n"
-    . "Notes: " . ($notes !== '' ? $notes : '(none)') . "\n\n"
-    . "Submitted: {$submittedAt}\n"
-    . "Source: shutterandspeed.co.nz booking form\n";
+$confirmUrl = 'https://shutterandspeed.co.nz/confirm-payment.php?'
+    . http_build_query($confirmPayload);
+
+$businessBody = '<p>New Bank Transfer booking — <strong>not yet paid</strong>. '
+    . 'Check your account, then use the button below once you see the transfer land.</p>';
+
+$businessHtml = renderEmailHtml(
+    'Awaiting Payment',
+    'New Booking Request',
+    $businessBody,
+    [
+        'Name' => $name,
+        'Email' => $email,
+        'Phone' => $phone,
+        'Package' => $package . ' ($' . $price . ' NZD)',
+        'Preferred date' => $date,
+        'Property address' => $address,
+        'Notes' => $notes !== '' ? $notes : '(none)',
+        'Submitted' => $submittedAt,
+    ],
+    ['label' => 'Confirm Payment Received', 'url' => $confirmUrl]
+);
 
 $headers = [
     'From: Shutter & Speed Website <' . FROM_EMAIL . '>',
     'Reply-To: ' . $name . ' <' . $email . '>',
-    'Content-Type: text/plain; charset=utf-8',
 ];
 
-$sent = mail(TO_EMAIL, $subject, $body, implode("\r\n", $headers));
+$sent = sendHtmlEmail(TO_EMAIL, 'New Booking — Awaiting Payment (' . $name . ')', $businessHtml, $headers);
 
 if (!$sent) {
     http_response_code(502);
@@ -134,32 +153,36 @@ if (!$sent) {
     exit;
 }
 
-// Best-effort customer confirmation. The business notification above
-// is the part that matters for this endpoint to report success on —
-// if the customer copy fails to send, that's not worth failing the
-// visitor's booking submission over.
-$customerSubject = 'Booking Received — Shutter & Speed Photography';
+// Best-effort customer email. The business notification above is
+// what matters for this endpoint to report success on — if this
+// copy fails to send, that's not worth failing the visitor's
+// submission over.
+$customerBody = '<p>Hi ' . e($name) . ',</p>'
+    . '<p>Thanks for booking with Shutter &amp; Speed Photography! '
+    . 'We\'ve received your request for the ' . e($package) . ' package — '
+    . '<strong>your shoot isn\'t confirmed yet</strong>, though. '
+    . 'We\'re waiting to see your bank transfer land, and you\'ll get a follow-up email '
+    . 'the moment we do.</p>'
+    . '<p><strong>Please transfer $' . e($price) . ' NZD to:</strong><br>'
+    . 'GAURAV KANT · 01-0071-0937116-00<br>'
+    . 'Reference: ' . e($name) . '</p>';
 
-$customerBody = "Hi {$name},\n\n"
-    . "Thanks for booking with Shutter & Speed Photography! " .
-      "We've received your request for the {$package} package (\${$price} NZD).\n\n"
-    . "Shoot details\n"
-    . "Preferred date: {$date}\n"
-    . "Property address: {$address}\n\n"
-    . "Payment — Bank Transfer\n"
-    . "GAURAV KANT · 01-0071-0937116-00\n"
-    . "Please use your name as the payment reference.\n\n"
-    . "We'll be in touch shortly to confirm your booking. " .
-      "Questions in the meantime? Reply to this email or call 022 124 0224.\n\n"
-    . "— Shutter & Speed Photography\n"
-    . "shutterandspeed.co.nz\n";
+$customerHtml = renderEmailHtml(
+    'Payment Pending',
+    'Booking Received — Not Yet Confirmed',
+    $customerBody,
+    [
+        'Package' => $package . ' ($' . $price . ' NZD)',
+        'Preferred date' => $date,
+        'Property address' => $address,
+    ]
+);
 
 $customerHeaders = [
     'From: Shutter & Speed Photography <' . FROM_EMAIL . '>',
     'Reply-To: Gaurav Kant <' . TO_EMAIL . '>',
-    'Content-Type: text/plain; charset=utf-8',
 ];
 
-mail($email, $customerSubject, $customerBody, implode("\r\n", $customerHeaders));
+sendHtmlEmail($email, 'Booking Received — Payment Pending', $customerHtml, $customerHeaders);
 
 echo json_encode(['success' => true]);

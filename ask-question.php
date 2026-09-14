@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
+require __DIR__ . '/email-template.php';
+
 // This endpoint is only ever called from the site's own inquiry form.
 $allowedOrigin = 'https://shutterandspeed.co.nz';
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -34,19 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 const TO_EMAIL = 'g.kant1998@gmail.com';
 const FROM_EMAIL = 'noreply@shutterandspeed.co.nz';
-const MAX_FIELD_LENGTH = 2000;
-
-/**
- * Strip characters that could be used for email header injection and
- * clamp length. Applied to every field before it touches a header or
- * the message body.
- */
-function cleanInput(string $value): string
-{
-    $value = str_replace(["\r", "\n"], ' ', $value);
-    $value = trim($value);
-    return mb_substr($value, 0, MAX_FIELD_LENGTH);
-}
 
 $raw = file_get_contents('php://input');
 $data = json_decode($raw ?: '', true);
@@ -67,9 +56,11 @@ if (!empty($data['company'])) {
 
 $name = cleanInput((string) ($data['name'] ?? ''));
 $email = cleanInput((string) ($data['email'] ?? ''));
-// Message is the one field long enough to want its newlines preserved,
-// so it's cleaned separately from cleanInput() (which flattens them —
-// appropriate for header-adjacent fields, not for a paragraph of text).
+// Message is the one field long enough to want its newlines preserved
+// for display, so it's cleaned separately from cleanInput() (which
+// flattens newlines — appropriate for header-adjacent fields, not a
+// paragraph of text). eMultiline() below turns the newlines into <br>
+// when it's placed in the HTML body.
 $rawMessage = (string) ($data['message'] ?? '');
 $message = mb_substr(trim($rawMessage), 0, MAX_FIELD_LENGTH);
 
@@ -95,22 +86,26 @@ if (!empty($errors)) {
 
 $submittedAt = date('Y-m-d H:i:s T');
 
-$subject = 'New Website Inquiry — ' . $name;
+$businessBody = '<p>New inquiry from the website.</p>'
+    . '<p><strong>Message:</strong><br>' . eMultiline($message) . '</p>';
 
-$body = "New inquiry from shutterandspeed.co.nz\n\n"
-    . "Name: {$name}\n"
-    . "Email: {$email}\n\n"
-    . "Message:\n{$message}\n\n"
-    . "Submitted: {$submittedAt}\n"
-    . "Source: shutterandspeed.co.nz inquiry form\n";
+$businessHtml = renderEmailHtml(
+    'New Inquiry',
+    'New Website Inquiry',
+    $businessBody,
+    [
+        'Name' => $name,
+        'Email' => $email,
+        'Submitted' => $submittedAt,
+    ]
+);
 
 $headers = [
     'From: Shutter & Speed Website <' . FROM_EMAIL . '>',
     'Reply-To: ' . $name . ' <' . $email . '>',
-    'Content-Type: text/plain; charset=utf-8',
 ];
 
-$sent = mail(TO_EMAIL, $subject, $body, implode("\r\n", $headers));
+$sent = sendHtmlEmail(TO_EMAIL, 'New Website Inquiry — ' . $name, $businessHtml, $headers);
 
 if (!$sent) {
     http_response_code(502);
@@ -121,22 +116,23 @@ if (!$sent) {
 // Best-effort auto-reply. The business notification above is what
 // matters for this endpoint to report success on — if the visitor's
 // copy fails to send, that's not worth failing their submission over.
-$customerSubject = "We've got your question — Shutter & Speed Photography";
+$customerBody = '<p>Hi ' . e($name) . ',</p>'
+    . '<p>Thanks for reaching out to Shutter &amp; Speed Photography — '
+    . 'we\'ve received your message and will reply soon.</p>'
+    . '<p><strong>Your message:</strong><br>' . eMultiline($message) . '</p>'
+    . '<p>In a hurry? Call or WhatsApp Gaurav directly on 022 124 0224.</p>';
 
-$customerBody = "Hi {$name},\n\n"
-    . "Thanks for reaching out to Shutter & Speed Photography — we've " .
-      "received your message and will reply soon.\n\n"
-    . "Your message:\n{$message}\n\n"
-    . "In a hurry? Call or WhatsApp Gaurav directly on 022 124 0224.\n\n"
-    . "— Shutter & Speed Photography\n"
-    . "shutterandspeed.co.nz\n";
+$customerHtml = renderEmailHtml(
+    'Message Received',
+    "We've got your question",
+    $customerBody
+);
 
 $customerHeaders = [
     'From: Shutter & Speed Photography <' . FROM_EMAIL . '>',
     'Reply-To: Gaurav Kant <' . TO_EMAIL . '>',
-    'Content-Type: text/plain; charset=utf-8',
 ];
 
-mail($email, $customerSubject, $customerBody, implode("\r\n", $customerHeaders));
+sendHtmlEmail($email, "We've got your question — Shutter & Speed Photography", $customerHtml, $customerHeaders);
 
 echo json_encode(['success' => true]);

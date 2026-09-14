@@ -9,6 +9,8 @@
  * On a verified checkout.session.completed event with payment_status
  * "paid", emails the same lead notification the Bank Transfer flow
  * sends, using the booking details Stripe stored as session metadata.
+ * Unlike Bank Transfer, no manual confirm step is needed here — the
+ * webhook itself is the verified proof of payment.
  */
 
 declare(strict_types=1);
@@ -19,6 +21,7 @@ if (!file_exists($configPath)) {
     exit('Not configured.');
 }
 require $configPath;
+require __DIR__ . '/email-template.php';
 
 const TO_EMAIL = 'g.kant1998@gmail.com';
 const FROM_EMAIL = 'noreply@shutterandspeed.co.nz';
@@ -88,11 +91,6 @@ function markProcessed(string $sessionId): void
     file_put_contents(PROCESSED_LOG, $sessionId . "\n", FILE_APPEND | LOCK_EX);
 }
 
-function cleanForEmail(string $value): string
-{
-    return str_replace(["\r", "\n"], ' ', trim($value));
-}
-
 $payload = file_get_contents('php://input');
 $sigHeader = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
 
@@ -144,13 +142,13 @@ if (alreadyProcessed($sessionId)) {
 
 $metadata = $session['metadata'] ?? [];
 
-$name = cleanForEmail((string) ($metadata['name'] ?? 'Unknown'));
-$phone = cleanForEmail((string) ($metadata['phone'] ?? ''));
-$date = cleanForEmail((string) ($metadata['date'] ?? ''));
-$address = cleanForEmail((string) ($metadata['address'] ?? ''));
-$notes = cleanForEmail((string) ($metadata['notes'] ?? ''));
-$package = cleanForEmail((string) ($metadata['package'] ?? ''));
-$email = cleanForEmail((string) ($session['customer_email'] ?? $session['customer_details']['email'] ?? ''));
+$name = cleanInput((string) ($metadata['name'] ?? 'Unknown'));
+$phone = cleanInput((string) ($metadata['phone'] ?? ''));
+$date = cleanInput((string) ($metadata['date'] ?? ''));
+$address = cleanInput((string) ($metadata['address'] ?? ''));
+$notes = cleanInput((string) ($metadata['notes'] ?? ''));
+$package = cleanInput((string) ($metadata['package'] ?? ''));
+$email = cleanInput((string) ($session['customer_email'] ?? $session['customer_details']['email'] ?? ''));
 
 $amountTotal = (int) ($session['amount_total'] ?? 0);
 $currency = strtoupper((string) ($session['currency'] ?? 'nzd'));
@@ -158,31 +156,35 @@ $amountFormatted = number_format($amountTotal / 100, 2);
 
 $submittedAt = date('Y-m-d H:i:s T');
 
-$subject = 'New Website Lead — ' . $name . ' (Paid via Stripe)';
+$businessBody = '<p>New booking, <strong>already paid</strong> via Stripe — no action needed, this is confirmed.</p>';
 
-$body = "New PAID booking from shutterandspeed.co.nz\n\n"
-    . "Name: {$name}\n"
-    . "Email: {$email}\n"
-    . "Phone: {$phone}\n"
-    . "Package: {$package}\n"
-    . "Amount paid: {$amountFormatted} {$currency}\n"
-    . "Preferred date: {$date}\n"
-    . "Property address: {$address}\n"
-    . "Notes: " . ($notes !== '' ? $notes : '(none)') . "\n\n"
-    . "Stripe session: {$sessionId}\n"
-    . "Received: {$submittedAt}\n"
-    . "Source: shutterandspeed.co.nz Stripe checkout\n";
+$businessHtml = renderEmailHtml(
+    'Paid via Stripe',
+    'New Booking — Confirmed',
+    $businessBody,
+    [
+        'Name' => $name,
+        'Email' => $email,
+        'Phone' => $phone,
+        'Package' => $package,
+        'Amount paid' => $amountFormatted . ' ' . $currency,
+        'Preferred date' => $date,
+        'Property address' => $address,
+        'Notes' => $notes !== '' ? $notes : '(none)',
+        'Stripe session' => $sessionId,
+        'Received' => $submittedAt,
+    ]
+);
 
 $headers = [
     'From: Shutter & Speed Website <' . FROM_EMAIL . '>',
-    'Content-Type: text/plain; charset=utf-8',
 ];
 
 if ($email !== '') {
     $headers[] = 'Reply-To: ' . $name . ' <' . $email . '>';
 }
 
-mail(TO_EMAIL, $subject, $body, implode("\r\n", $headers));
+sendHtmlEmail(TO_EMAIL, 'New Website Lead — ' . $name . ' (Paid via Stripe)', $businessHtml, $headers);
 
 // Customer confirmation. Best-effort: the business notification above
 // is what matters for this webhook to have "handled" the event —
@@ -190,28 +192,28 @@ mail(TO_EMAIL, $subject, $body, implode("\r\n", $headers));
 // session processed, same as the Bank Transfer flow's customer copy.
 if ($email !== '') {
 
-    $customerSubject = 'Payment Confirmed — Shutter & Speed Photography';
+    $customerBody = '<p>Hi ' . e($name) . ',</p>'
+        . '<p>Thanks for booking with Shutter &amp; Speed Photography! '
+        . 'Your payment has gone through and your booking is <strong>confirmed</strong>.</p>';
 
-    $customerBody = "Hi {$name},\n\n"
-        . "Thanks for booking with Shutter & Speed Photography! " .
-          "Your payment has gone through and your booking is confirmed.\n\n"
-        . "Booking details\n"
-        . "Package: {$package}\n"
-        . "Amount paid: {$amountFormatted} {$currency}\n"
-        . "Preferred date: {$date}\n"
-        . "Property address: {$address}\n\n"
-        . "We'll be in touch shortly to confirm the details. " .
-          "Questions in the meantime? Reply to this email or call/WhatsApp 022 124 0224.\n\n"
-        . "— Shutter & Speed Photography\n"
-        . "shutterandspeed.co.nz\n";
+    $customerHtml = renderEmailHtml(
+        'Payment Confirmed',
+        'Your shoot is locked in',
+        $customerBody,
+        [
+            'Package' => $package,
+            'Amount paid' => $amountFormatted . ' ' . $currency,
+            'Preferred date' => $date,
+            'Property address' => $address,
+        ]
+    );
 
     $customerHeaders = [
         'From: Shutter & Speed Photography <' . FROM_EMAIL . '>',
         'Reply-To: Gaurav Kant <' . TO_EMAIL . '>',
-        'Content-Type: text/plain; charset=utf-8',
     ];
 
-    mail($email, $customerSubject, $customerBody, implode("\r\n", $customerHeaders));
+    sendHtmlEmail($email, 'Payment Confirmed — Shutter & Speed Photography', $customerHtml, $customerHeaders);
 
 }
 
