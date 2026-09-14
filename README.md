@@ -1,52 +1,58 @@
-# ShutterSpeed NZ
+# Shutter & Speed Photography
 
-A simple, production-ready landing page for a modern service business, built as a static website for easy hosting and fast deployment.
+Production website for Shutter & Speed Photography — real estate photography, video, drone and twilight shoots in Whangarei, NZ. Live at [shutterandspeed.co.nz](https://shutterandspeed.co.nz).
 
 ## Project overview
 
-This project is designed to:
-
-- present a professional landing page for the business
-- explain the service value clearly
-- capture visitor interest with a lead form
-- remain lightweight and easy to host on static hosting providers like Hostinger
-- avoid unnecessary backend complexity in the initial version
+- Single self-contained landing page with an inline booking form (package selection, contact details, payment method)
+- Lead notifications and Stripe payments both deliver an email straight to the business inbox
+- No database — leads live only in email, not stored anywhere on the server
+- Hosted on Hostinger shared hosting (static HTML + a few small PHP endpoints, no build step, no framework)
 
 ## Tech stack
 
-- HTML5
-- CSS3
-- Vanilla JavaScript
-- No database required for the initial launch
+- HTML5 + inline CSS/JS (`index.html` is self-contained — no bundler, no build step)
+- PHP 8 endpoints for the two things a static site can't do on its own: sending email and talking to Stripe's secret API
+- Stripe Checkout for one-time card payments (not a subscription — each package is a single per-shoot payment)
+- PHP's built-in `mail()` for notifications — no SMTP credentials or third-party email API needed
 
 ## Project structure
 
-- `index.html` — landing page structure
-- `styles.css` — layout, visual styling, responsive design
-- `script.js` — form handling and small UI behavior
-- `docs/implementation_plan.md` — project plan and milestone tracking
+- `index.html` — the entire site: markup, styles, and booking-form logic in one file
+- `send-booking.php` — emails a lead notification (and a short customer confirmation) for Bank Transfer bookings
+- `create-checkout-session.php` — creates a Stripe Checkout Session server-side for Credit/Debit Card bookings and returns its URL
+- `stripe-webhook.php` — verifies Stripe's `checkout.session.completed` webhook signature and emails the lead notification once a card payment is confirmed paid (the source of truth — the browser redirect alone is never trusted)
+- `stripe-config.php` — **not committed**, holds the Stripe secret key and webhook signing secret; deployed directly to Hostinger outside git (see `stripe-config.example.php` for the template and where to get each value)
+- `.htaccess` — blocks direct HTTP access to dotfiles and `stripe-config.php`
+- `docs/implementation_plan.md` — the phased build plan this project followed
+
+## Secrets and configuration
+
+There are exactly two secrets, both Stripe-related, both kept out of git:
+
+| Constant | Where it's used | Where to get it |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | `create-checkout-session.php` | Stripe Dashboard → Developers → API keys → restricted key scoped to Checkout Sessions (Write) + Products/Prices (Read) |
+| `STRIPE_WEBHOOK_SECRET` | `stripe-webhook.php` | Stripe Dashboard → Developers → Webhooks → your endpoint's signing secret |
+
+Both live in `stripe-config.php`, which is `.gitignore`d and uploaded to Hostinger directly (not through git). Copy `stripe-config.example.php` to `stripe-config.php` locally if you need to work on the PHP endpoints, and fill in real test-mode values.
+
+No other secrets exist — there's no database, no third-party email API key, and the destination inbox (`g.kant1998@gmail.com`) and Stripe Price IDs are hardcoded in the PHP files since they aren't sensitive.
 
 ## Local development
 
-Open `index.html` directly in a browser, or serve the folder with a local static server:
+The PHP endpoints need an actual PHP environment to run (they're not testable by opening `index.html` directly). For frontend-only changes, serve the folder with any static server, e.g.:
 
 ```bash
-python -m http.server 8000
+npx http-server -p 8000
 ```
 
-Then visit:
+Then visit `http://localhost:8000`. Booking-form submissions will fail against a static server (no PHP) — that's expected; the error handling is designed to degrade gracefully.
 
-```text
-http://localhost:8000
-```
+## Deployment
 
-## Deployment notes
+Deployed directly to Hostinger shared hosting via file upload (not a git-based deploy). The live document root is `shutterandspeed.co.nz/public_html`. When changing a PHP endpoint or `index.html`, upload the changed file(s) directly — there's no build step.
 
-This project is intentionally static and can be deployed to most static hosting platforms. It is ready for a simple Hostinger deployment workflow without introducing a backend unless required later.
+## Status
 
-## Next steps
-
-- replace placeholder business copy with final messaging
-- connect the contact form to an email or CRM workflow
-- add Stripe checkout once pricing and subscription flows are approved
-- connect hosting, domain, and DNS for production
+All phases of `docs/implementation_plan.md` through Phase 9 (customer confirmation emails) are complete and live-tested, including a real Stripe test-mode payment end-to-end. Remaining phases: production configuration review (in progress), Hostinger/DNS review, production testing, and replacing any remaining placeholder content.
