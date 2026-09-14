@@ -12,3 +12,8 @@ node_modules/
 # Build output
 dist/
 build/
+
+# Server secrets — never commit, deployed directly to Hostinger
+stripe-config.php
+.env
+.env.local

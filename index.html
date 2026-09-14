@@ -1678,7 +1678,10 @@
 
             </div>
 
-            <p style="color:#555;font-size:12px;margin-top:12px;">
+            <p
+              id="paymentNote"
+              style="color:#555;font-size:12px;margin-top:12px;"
+            >
               You'll receive the ANZ account details and your booking
               reference after confirming.
             </p>
@@ -1831,13 +1834,20 @@
       BOOKING CONFIGURATION
       ============================================================
 
-      Booking submissions are sent to send-booking.php, a small
+      Bank Transfer bookings are sent to send-booking.php, a small
       PHP endpoint deployed alongside this site on Hostinger. It
       emails the lead notification using the server's own mail
       relay — no API keys or SMTP credentials are needed here.
+
+      Credit/Debit Card bookings are sent to
+      create-checkout-session.php instead, which creates a Stripe
+      Checkout Session server-side and returns its URL for the
+      browser to redirect to. The Stripe secret key lives only in
+      stripe-config.php on the server — never in this file.
     */
 
     const BOOKING_ENDPOINT = "/send-booking.php";
+    const CHECKOUT_ENDPOINT = "/create-checkout-session.php";
 
 
     let selectedPackage = "Professional";
@@ -1920,6 +1930,18 @@
 
       selectedPayment =
         button.dataset.payment;
+
+      const paymentNote =
+        document.getElementById("paymentNote");
+
+      if (paymentNote) {
+
+        paymentNote.textContent =
+          selectedPayment === "Credit / Debit Card"
+            ? "You'll be taken to Stripe's secure checkout to complete payment."
+            : "You'll receive the ANZ account details and your booking reference after confirming.";
+
+      }
 
     }
 
@@ -2120,12 +2142,18 @@
 
       };
 
+      const isCardPayment =
+        selectedPayment === "Credit / Debit Card";
+
+      const endpoint =
+        isCardPayment ? CHECKOUT_ENDPOINT : BOOKING_ENDPOINT;
+
 
       try {
 
         const response =
           await fetch(
-            BOOKING_ENDPOINT,
+            endpoint,
             {
 
               method: "POST",
@@ -2152,6 +2180,18 @@
           throw new Error(
             result.error || "Booking request failed."
           );
+
+        }
+
+
+        if (isCardPayment) {
+
+          // Leave the page for Stripe's hosted checkout. Don't
+          // reset the form or re-enable the button — the browser
+          // is navigating away regardless.
+          window.location.href = result.url;
+
+          return;
 
         }
 
@@ -2231,6 +2271,64 @@
       }
 
     });
+
+
+    /*
+      Show a success/cancelled banner when Stripe redirects back
+      after Checkout. The redirect alone doesn't prove the payment
+      succeeded (Stripe's webhook is the source of truth for that),
+      but it's enough to tell the visitor what happened and scroll
+      them to the confirmation.
+    */
+
+    (function() {
+
+      const params =
+        new URLSearchParams(window.location.search);
+
+      const checkoutStatus =
+        params.get("checkout");
+
+      if (!checkoutStatus) {
+
+        return;
+
+      }
+
+      const message =
+        document.getElementById("formMessage");
+
+      if (!message) {
+
+        return;
+
+      }
+
+      message.style.display = "block";
+
+      if (checkoutStatus === "success") {
+
+        message.style.color = "";
+        message.style.borderColor = "";
+
+        message.innerHTML =
+          "Payment received — thank you! " +
+          "We'll be in touch shortly to confirm your shoot.";
+
+      } else if (checkoutStatus === "cancelled") {
+
+        message.style.color = "";
+        message.style.borderColor = "";
+
+        message.innerHTML =
+          "Checkout was cancelled — no payment was taken. " +
+          "You can try again anytime.";
+
+      }
+
+      scrollToBooking();
+
+    })();
 
   </script>
 
