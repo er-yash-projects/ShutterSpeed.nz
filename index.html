@@ -734,6 +734,15 @@
       flex-direction: column;
     }
 
+    .honeypot {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
     .field.invalid {
       border-color: #ff6b6b;
     }
@@ -1461,6 +1470,20 @@
           onsubmit="submitBooking(event)"
         >
 
+          <!-- Honeypot spam trap: hidden from real visitors via CSS
+               and aria-hidden, but visible to most bots that fill
+               every field. Left empty, it's proof of a human. -->
+          <div class="honeypot" aria-hidden="true">
+            <label for="company">Company</label>
+            <input
+              type="text"
+              id="company"
+              name="company"
+              tabindex="-1"
+              autocomplete="off"
+            >
+          </div>
+
           <!-- STEP 1 -->
 
           <div class="form-step">
@@ -1808,18 +1831,13 @@
       BOOKING CONFIGURATION
       ============================================================
 
-      When you're ready to connect SendGrid, replace the
-      placeholder endpoint below with your own secure backend URL.
-
-      DO NOT put your SendGrid API key in this file.
-
-      Example:
-
-      const BOOKING_ENDPOINT = "https://yourdomain.com/api/booking";
-
+      Booking submissions are sent to send-booking.php, a small
+      PHP endpoint deployed alongside this site on Hostinger. It
+      emails the lead notification using the server's own mail
+      relay — no API keys or SMTP credentials are needed here.
     */
 
-    const BOOKING_ENDPOINT = "";
+    const BOOKING_ENDPOINT = "/send-booking.php";
 
 
     let selectedPackage = "Professional";
@@ -2091,44 +2109,16 @@
           document.getElementById("address").value,
 
         notes:
-          document.getElementById("notes").value
+          document.getElementById("notes").value,
+
+        // Honeypot: real visitors never see or fill this field.
+        // A non-empty value here means the submission came from a
+        // bot, so send-booking.php silently accepts it without
+        // emailing a notification.
+        company:
+          document.getElementById("company").value
 
       };
-
-
-      /*
-        ----------------------------------------------------------
-        SENDGRID CONNECTION
-        ----------------------------------------------------------
-
-        If BOOKING_ENDPOINT is empty, we display a temporary
-        message instead of attempting to send anything.
-
-        Once your SendGrid backend is ready, this automatically
-        POSTs the booking information to your endpoint.
-      */
-
-
-      if (!BOOKING_ENDPOINT) {
-
-        message.style.display = "block";
-
-        message.innerHTML =
-          "Your booking details are ready. " +
-          "SendGrid has not been connected yet. " +
-          "Add your secure booking endpoint above.";
-
-        console.log(
-          "Booking ready for SendGrid:",
-          booking
-        );
-
-        submitButton.disabled = false;
-        submitButton.textContent = originalButtonText;
-
-        return;
-
-      }
 
 
       try {
@@ -2149,11 +2139,18 @@
             }
           );
 
+        const result =
+          await response
+            .json()
+            .catch(function() {
+              return {};
+            });
 
-        if (!response.ok) {
+
+        if (!response.ok || !result.success) {
 
           throw new Error(
-            "Booking request failed."
+            result.error || "Booking request failed."
           );
 
         }
