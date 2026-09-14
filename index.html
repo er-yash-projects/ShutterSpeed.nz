@@ -872,16 +872,89 @@
       margin-bottom: 25px;
     }
 
+    .inquiry-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 28px;
+      color: #555;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .inquiry-divider::before,
+    .inquiry-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .inquiry-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .inquiry-form textarea.field {
+      resize: vertical;
+    }
+
+    /* WHATSAPP FLOAT */
+
+    .whatsapp-float {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--black);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 14px 18px;
+      text-decoration: none;
+      transition: border-color .25s, transform .2s;
+    }
+
+    .whatsapp-float:hover {
+      border-color: var(--volt);
+      transform: translateY(-2px);
+    }
+
+    .whatsapp-float svg {
+      width: 22px;
+      height: 22px;
+      flex: none;
+      fill: var(--volt);
+    }
+
+    .whatsapp-float span {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
     footer {
       border-top: 1px solid var(--border);
     }
 
     .footer-main {
       padding: 28px 0;
+      /* Extra clearance so the fixed WhatsApp button never sits over
+         the footer links once the page is scrolled all the way down. */
+      padding-bottom: 96px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 20px;
+      flex-wrap: wrap;
     }
 
     .footer-copy {
@@ -976,6 +1049,16 @@
 
       section.standard {
         padding: 90px 0;
+      }
+
+      .whatsapp-float {
+        right: 16px;
+        bottom: 16px;
+        padding: 14px;
+      }
+
+      .whatsapp-float span {
+        display: none;
       }
 
       .logo {
@@ -1811,6 +1894,84 @@
                 Book Your Shoot
               </button>
 
+              <p class="inquiry-divider">
+                Or ask a question first
+              </p>
+
+              <form
+                id="inquiryForm"
+                class="inquiry-form"
+                novalidate
+                onsubmit="submitInquiry(event)"
+              >
+
+                <div class="honeypot" aria-hidden="true">
+                  <label for="inquiryCompany">Company</label>
+                  <input
+                    type="text"
+                    id="inquiryCompany"
+                    name="company"
+                    tabindex="-1"
+                    autocomplete="off"
+                  >
+                </div>
+
+                <div class="field-wrap">
+                  <label class="sr-only" for="inquiryName">Your name</label>
+                  <input
+                    class="field"
+                    id="inquiryName"
+                    name="name"
+                    required
+                    maxlength="100"
+                    placeholder="Your name"
+                    aria-describedby="inquiryNameError"
+                  >
+                  <p class="field-error" id="inquiryNameError" aria-live="polite"></p>
+                </div>
+
+                <div class="field-wrap">
+                  <label class="sr-only" for="inquiryEmail">Your email</label>
+                  <input
+                    class="field"
+                    id="inquiryEmail"
+                    name="email"
+                    type="email"
+                    required
+                    maxlength="200"
+                    placeholder="Your email"
+                    aria-describedby="inquiryEmailError"
+                  >
+                  <p class="field-error" id="inquiryEmailError" aria-live="polite"></p>
+                </div>
+
+                <div class="field-wrap">
+                  <label class="sr-only" for="inquiryMessage">Your question</label>
+                  <textarea
+                    class="field"
+                    id="inquiryMessage"
+                    name="message"
+                    rows="3"
+                    required
+                    maxlength="1000"
+                    placeholder="What would you like to know?"
+                    aria-describedby="inquiryMessageError"
+                  ></textarea>
+                  <p class="field-error" id="inquiryMessageError" aria-live="polite"></p>
+                </div>
+
+                <button
+                  type="submit"
+                  class="btn btn-outline"
+                  style="width:100%;"
+                >
+                  Send Message
+                </button>
+
+                <div id="inquiryFormStatus" class="form-message"></div>
+
+              </form>
+
             </div>
 
           </div>
@@ -1848,6 +2009,21 @@
   </main>
 
 
+  <a
+    href="https://wa.me/64221240224?text=Hi%20Gaurav%2C%20I%20have%20a%20question%20about%20a%20shoot%20%E2%80%94"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="whatsapp-float"
+    aria-label="Chat with us on WhatsApp"
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+      <path d="M12.004 2.003c-5.514 0-9.997 4.483-9.997 9.997 0 1.762.462 3.482 1.34 4.997L2 22l5.128-1.345a9.958 9.958 0 0 0 4.876 1.242h.004c5.514 0 9.997-4.483 9.997-9.997 0-2.671-1.04-5.182-2.929-7.071a9.935 9.935 0 0 0-7.072-2.926zm5.845 15.842a8.264 8.264 0 0 1-5.845 2.421h-.003a8.29 8.29 0 0 1-4.223-1.155l-.303-.18-3.146.826.84-3.067-.198-.315a8.264 8.264 0 0 1-1.267-4.404c0-4.568 3.717-8.285 8.288-8.285a8.24 8.24 0 0 1 5.862 2.428 8.24 8.24 0 0 1 2.425 5.86 8.264 8.264 0 0 1-2.43 5.871z"/>
+    </svg>
+    <span>Chat on WhatsApp</span>
+  </a>
+
+
   <script>
 
     /*
@@ -1869,6 +2045,7 @@
 
     const BOOKING_ENDPOINT = "/send-booking.php";
     const CHECKOUT_ENDPOINT = "/create-checkout-session.php";
+    const INQUIRY_ENDPOINT = "/ask-question.php";
 
 
     let selectedPackage = "Professional";
@@ -2252,6 +2429,190 @@
     }
 
 
+    function validateInquiryForm() {
+
+      const fieldIds =
+        ["inquiryName", "inquiryEmail", "inquiryMessage"];
+
+      fieldIds.forEach(clearFieldError);
+
+      let firstInvalidId = null;
+
+      function flagInvalid(id, text) {
+
+        showFieldError(id, text);
+
+        if (!firstInvalidId) {
+
+          firstInvalidId = id;
+
+        }
+
+      }
+
+      const name =
+        document.getElementById("inquiryName").value.trim();
+
+      const email =
+        document.getElementById("inquiryEmail").value.trim();
+
+      const message =
+        document.getElementById("inquiryMessage").value.trim();
+
+
+      if (!name) {
+
+        flagInvalid("inquiryName", "Please enter your name.");
+
+      }
+
+      if (!email) {
+
+        flagInvalid("inquiryEmail", "Please enter your email address.");
+
+      } else if (!EMAIL_PATTERN.test(email)) {
+
+        flagInvalid("inquiryEmail", "Please enter a valid email address.");
+
+      }
+
+      if (!message) {
+
+        flagInvalid("inquiryMessage", "Please enter your question or message.");
+
+      }
+
+
+      if (firstInvalidId) {
+
+        document
+          .getElementById(firstInvalidId)
+          .focus();
+
+        return false;
+
+      }
+
+      return true;
+
+    }
+
+
+    async function submitInquiry(event) {
+
+      event.preventDefault();
+
+      const status =
+        document.getElementById("inquiryFormStatus");
+
+      if (!validateInquiryForm()) {
+
+        status.style.display = "none";
+
+        return;
+
+      }
+
+      const submitButton =
+        event.target.querySelector('button[type="submit"]');
+
+      const originalButtonText =
+        submitButton.textContent;
+
+      submitButton.disabled = true;
+      submitButton.textContent = "Sending…";
+
+      const inquiry = {
+
+        name:
+          document.getElementById("inquiryName").value,
+
+        email:
+          document.getElementById("inquiryEmail").value,
+
+        message:
+          document.getElementById("inquiryMessage").value,
+
+        // Honeypot — same spam trap as the booking form.
+        company:
+          document.getElementById("inquiryCompany").value
+
+      };
+
+
+      try {
+
+        const response =
+          await fetch(
+            INQUIRY_ENDPOINT,
+            {
+
+              method: "POST",
+
+              headers: {
+                "Content-Type": "application/json"
+              },
+
+              body: JSON.stringify(inquiry)
+
+            }
+          );
+
+        const result =
+          await response
+            .json()
+            .catch(function() {
+              return {};
+            });
+
+
+        if (!response.ok || !result.success) {
+
+          throw new Error(
+            result.error || "Could not send your message."
+          );
+
+        }
+
+
+        status.style.display = "block";
+
+        status.style.color = "";
+
+        status.style.borderColor = "";
+
+        status.innerHTML =
+          "Thanks — we've got your message and will reply soon.";
+
+        document
+          .getElementById("inquiryForm")
+          .reset();
+
+
+      } catch (error) {
+
+        console.error(error);
+
+        status.style.display = "block";
+
+        status.style.color = "#ff6b6b";
+
+        status.style.borderColor = "#ff6b6b";
+
+        status.innerHTML =
+          "Something went wrong sending your message. " +
+          "Please call or WhatsApp 022 124 0224.";
+
+      } finally {
+
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+
+      }
+
+    }
+
+
     /*
       Set today's date as the minimum selectable booking date.
     */
@@ -2277,6 +2638,23 @@
     */
 
     ["name", "email", "phone", "date", "address"].forEach(function(id) {
+
+      const field =
+        document.getElementById(id);
+
+      if (field) {
+
+        field.addEventListener("input", function() {
+
+          clearFieldError(id);
+
+        });
+
+      }
+
+    });
+
+    ["inquiryName", "inquiryEmail", "inquiryMessage"].forEach(function(id) {
 
       const field =
         document.getElementById(id);
