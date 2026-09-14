@@ -184,6 +184,37 @@ if ($email !== '') {
 
 mail(TO_EMAIL, $subject, $body, implode("\r\n", $headers));
 
+// Customer confirmation. Best-effort: the business notification above
+// is what matters for this webhook to have "handled" the event —
+// mail() delivery to the customer isn't checked before marking the
+// session processed, same as the Bank Transfer flow's customer copy.
+if ($email !== '') {
+
+    $customerSubject = 'Payment Confirmed — Shutter & Speed Photography';
+
+    $customerBody = "Hi {$name},\n\n"
+        . "Thanks for booking with Shutter & Speed Photography! " .
+          "Your payment has gone through and your booking is confirmed.\n\n"
+        . "Booking details\n"
+        . "Package: {$package}\n"
+        . "Amount paid: {$amountFormatted} {$currency}\n"
+        . "Preferred date: {$date}\n"
+        . "Property address: {$address}\n\n"
+        . "We'll be in touch shortly to confirm the details. " .
+          "Questions in the meantime? Reply to this email or call/WhatsApp 022 124 0224.\n\n"
+        . "— Shutter & Speed Photography\n"
+        . "shutterandspeed.co.nz\n";
+
+    $customerHeaders = [
+        'From: Shutter & Speed Photography <' . FROM_EMAIL . '>',
+        'Reply-To: Gaurav Kant <' . TO_EMAIL . '>',
+        'Content-Type: text/plain; charset=utf-8',
+    ];
+
+    mail($email, $customerSubject, $customerBody, implode("\r\n", $customerHeaders));
+
+}
+
 markProcessed($sessionId);
 
 http_response_code(200);
