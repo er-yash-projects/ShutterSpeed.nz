@@ -1,0 +1,6 @@
+# Block direct access to dotfiles (e.g. the webhook idempotency log)
+# and the gitignored Stripe secret config, in case it's ever requested
+# directly instead of via require() from PHP.
+<FilesMatch "^\.|^stripe-config\.php$">
+  Require all denied
+</FilesMatch>
