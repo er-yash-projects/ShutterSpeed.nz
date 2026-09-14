@@ -765,6 +765,7 @@
     }
 
     .payment-choice {
+      position: relative;
       background: transparent;
       border: 1px solid var(--border);
       color: #fff;
@@ -784,6 +785,24 @@
 
     .payment-choice small {
       color: #666;
+    }
+
+    .payment-choice:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .coming-soon-badge {
+      position: absolute;
+      right: 0;
+      top: 0;
+      background: var(--border);
+      color: #999;
+      padding: 7px 12px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
     }
 
     .booking-bottom {
@@ -1767,11 +1786,14 @@
                 class="payment-choice"
                 data-payment="Credit / Debit Card"
                 aria-pressed="false"
-                onclick="choosePayment(this)"
+                disabled
+                aria-disabled="true"
+                title="Card payments are coming soon — please use bank transfer for now"
               >
+                <span class="coming-soon-badge">Coming Soon</span>
                 <strong>Credit / Debit Card</strong>
                 <small>
-                  Secure checkout via Stripe
+                  Not available yet — pay by bank transfer for now
                 </small>
               </button>
 
